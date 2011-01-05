@@ -98,20 +98,26 @@ PUB main
 
       if (byte[VarStr[1]] <> 0)
         if (byte[VarStr[1]] == "o")
-          SERVO.SetRamp(ServoCh1,500,200)
           status := "1"
-        if (byte[VarStr[1]] == "c")
-          SERVO.SetRamp(ServoCh1,2300,200)
+          StringSend(0, string("opening", CR))
+        elseif (byte[VarStr[1]] == "c")
           status := "0"
-
-      if (status == "0")
+          StringSend(0, string("closing", CR))
+      elseif (status == "1")
+        StringSend(0, string("open", CR))
+      elseif (status == "0")
         StringSend(0, string("closed", CR))
-      if (status == "1")
-        StringSend(0, string("opened", CR))
+
       StringSend(0, string(CR, LF))
 
     ETHERNET.SocketTCPdisconnect(0)
     ETHERNET.SocketClose(0)
+
+    if (byte[VarStr[1]] <> 0)
+      if (byte[VarStr[1]] == "o")
+        SERVO.SetRamp(ServoCh1,500,200)
+      if (byte[VarStr[1]] == "c")
+        SERVO.SetRamp(ServoCh1,2300,200)
 
   return 'end of main
   
