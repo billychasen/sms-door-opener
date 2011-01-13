@@ -54,6 +54,7 @@ VAR
 OBJ
   ETHERNET      : "Brilldea_W5100_Indirect_Driver_Ver006.spin"
   SERVO         : "Servo32v7.spin"
+  PST           : "Parallax Serial Terminal.spin"
 
 PUB main 
 
@@ -61,6 +62,8 @@ PUB main
    SERVO.Start
    SERVO.Ramp
    SERVO.SetRamp(ServoCh1,1500,200)
+
+   PST.Start(115_200)
 
   'Start the W5100 driver on Parallax Web Server module
   ETHERNET.StartINDIRECT(0, 8, 9, 12, 11, 10, 14, 15)
@@ -73,54 +76,60 @@ PUB main
   localSocket := 80 
   destSocket := 80  
 
-  'Infinite loop of the server
+  ETHERNET.SocketOpen(0, ETHERNET#_TCPPROTO, localSocket, destSocket, @destIP[0])
+  ETHERNET.SocketTCPlisten(0)
+
   repeat
-    ETHERNET.SocketOpen(0, ETHERNET#_TCPPROTO, localSocket, destSocket, @destIP[0])
-    ETHERNET.SocketTCPlisten(0)
-    repeat while !ETHERNET.SocketTCPestablished(0)
-    bytefill(@data, 0, _bytebuffersize)
-    WaitCnt(clkfreq / 100 + cnt) ' 10mSec    
-    ETHERNET.rxTCP(0, @data)
+    if !ETHERNET.SocketTCPestablished(0)
+      if ETHERNET.SocketStatus(0) == $00 OR ETHERNET.SocketStatus(0) == $1C
+        ResetSocket
+      'PST.Str(string("blah"))
+      ' next
+    else
+      bytefill(@data, 0, _bytebuffersize)
+      WaitCnt(clkfreq / 100 + cnt) ' 10mSec
+      ETHERNET.rxTCP(0, @data)
 
-    if data[0] == "G" ' Assume a GET request
-      ParseURL
+      if data[0] == "G" ' Assume a GET request
+        ParseURL
 
-      'Send the web page - hardcoded here
-      'status line
-      StringSend(0, string("HTTP/1.1 200 OK", CR, LF))
+        'Send the web page - hardcoded here
+        'status line
+        StringSend(0, string("HTTP/1.1 200 OK", CR, LF))
        
-      'optional header
-      StringSend(0, string("Server: Parallax Spinneret Web Server", CR))
-      StringSend(0, string("Connection: close", CR))
-      StringSend(0, string("Content-Type: text/html", CR, LF))
+        'optional header
+        StringSend(0, string("Server: Parallax Spinneret Web Server", CR))
+        StringSend(0, string("Connection: close", CR))
+        StringSend(0, string("Content-Type: text/html", CR, LF))
 
-      StringSend(0, string(CR, LF))
+        StringSend(0, string(CR, LF))
 
-      if (byte[VarStr[1]] <> 0)
-        if (byte[VarStr[1]] == "o")
-          status := "1"
-          StringSend(0, string("opening", CR))
-        elseif (byte[VarStr[1]] == "c")
-          status := "0"
-          StringSend(0, string("closing", CR))
-      elseif (status == "1")
-        StringSend(0, string("open", CR))
-      elseif (status == "0")
-        StringSend(0, string("closed", CR))
+        if (byte[VarStr[1]] <> 0)
+          if (byte[VarStr[1]] == "o")
+            status := "1"
+            StringSend(0, string("opening", CR))
+            SERVO.SetRamp(ServoCh1,500,200)
+          elseif (byte[VarStr[1]] == "c")
+            status := "0"
+            StringSend(0, string("closing", CR))
+            SERVO.SetRamp(ServoCh1,2300,200)
+        elseif (status == "1")
+          StringSend(0, string("open", CR))
+        elseif (status == "0")
+          StringSend(0, string("closed", CR))
 
-      StringSend(0, string(CR, LF))
+        StringSend(0, string(CR, LF))
 
-    ETHERNET.SocketTCPdisconnect(0)
-    ETHERNET.SocketClose(0)
-
-    if (byte[VarStr[1]] <> 0)
-      if (byte[VarStr[1]] == "o")
-        SERVO.SetRamp(ServoCh1,500,200)
-      if (byte[VarStr[1]] == "c")
-        SERVO.SetRamp(ServoCh1,2300,200)
+      ResetSocket
 
   return 'end of main
   
+PRI ResetSocket
+  ETHERNET.SocketTCPdisconnect(0)
+  ETHERNET.SocketClose(0)
+  ETHERNET.SocketOpen(0, ETHERNET#_TCPPROTO, localSocket, destSocket, @destIP[0])
+  ETHERNET.SocketTCPlisten(0)
+  return
 
 PRI SetMAC(p0, p1, p2, p3, p4, p5)
   MAC[0] := p0
